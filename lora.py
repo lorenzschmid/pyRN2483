@@ -1,16 +1,28 @@
 import serial
+import argparse
 
-DEBUG = True
+# Command Line Arguments and Parsing
+parser = argparse.ArgumentParser(description='LoRa Script Arguments')
+parser.add_argument('-d','--debug', action='store_true', help='debug mode')
+parser.add_argument('-tx','--transmit', action='store_true', help='Set Radio TX Mode')
+parser.add_argument('-p','--port', default='ttyUSB0', help='Serial Port e.g. ttyUSB1, tty.usbserial-A5046HZ5')
+args = parser.parse_args()
+DEBUG = args.debug
+serPort = args.port
+radioModeTx = args.transmit
 
-
-def send(ser, strIn, strOut=0):
+# Functions 
+def send_no_ack(ser, strIn):
     # write bytes
     ser.write(b"%s\r\n" % strIn)
+
+def send(ser, strIn, strOut=0):
+    send_no_ack(ser, strIn)
 
     # wait for answer
     ret = ser.readline()
     if DEBUG:
-        print ">> send ret: %s" % ret.strip()
+        print ">> %s" % ret.strip()
 
     # if requested, verify return
     if strOut is not 0:
@@ -20,7 +32,7 @@ def send(ser, strIn, strOut=0):
     return True
 
 
-def set_rx_mode(ser):
+def set_rx_mode(ser, getsnr = 0):
     try:
         # try to configure device as receiver
         send(ser, "mac pause")
@@ -38,6 +50,11 @@ def set_rx_mode(ser):
 
         if DEBUG:
             print ">> %s" % ret
+        
+        if getsnr:
+            send_no_ack(ser, "radio get snr")
+            snr = ser.readline()
+            print ">> SNR=%s" % snr #range -128 to 127
         return ret
 
 
@@ -60,7 +77,7 @@ def set_tx_mode(ser):
             print "TX: Failed to Send!"
 
 
-with serial.Serial('/dev/ttyUSB0',
+with serial.Serial('/dev/'+serPort,
                    baudrate=57600,
                    bytesize=serial.EIGHTBITS,
                    parity=serial.PARITY_NONE,
@@ -84,6 +101,13 @@ with serial.Serial('/dev/ttyUSB0',
         # abort if configuration failed
         print "Initial Configuration failed!"
     else:
-        set_tx_mode(ser)
+        if radioModeTx:
+            set_tx_mode(ser)
+        else:
+            rxCount = 0
+            while(1):
+                set_rx_mode(ser, 1)
+                rxCount = rxCount + 1
+                print "rx packet %d" %rxCount
     print "end"
     ser.close()
