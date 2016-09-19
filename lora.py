@@ -1,6 +1,4 @@
 import serial
-import argparse
-
 
 # Functions
 def send_no_ack(ser, strIn):
@@ -72,6 +70,7 @@ def set_tx_mode(ser):
 
 # execute only if run as a script
 if __name__ == "__main__":
+    import argparse
 
     # command line arguments and parsing
     parser = argparse.ArgumentParser(description='LoRa Script Arguments')
