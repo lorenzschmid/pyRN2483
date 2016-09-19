@@ -67,6 +67,10 @@ def set_tx_mode(ser):
         except IOError:
             print "TX: Failed to Send!"
 
+def open_pyb(port = 1):
+    ser = UART(port, 57600)                      # init with given baudrate
+    ser.init(57600, bits=8, parity=None, stop=1) # init with given parameters
+    return ser
 
 # execute only if run as a script
 if __name__ == "__main__":
