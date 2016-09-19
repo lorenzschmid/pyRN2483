@@ -1,5 +1,6 @@
 import serial
 
+
 # Functions
 def send_no_ack(ser, strIn):
     # write bytes
@@ -68,6 +69,50 @@ def set_tx_mode(ser):
             print "TX: Failed to Send!"
 
 
+def open_pc(serPort):
+    return serial.Serial('/dev/' + serPort,
+                         baudrate=57600,
+                         bytesize=serial.EIGHTBITS,
+                         parity=serial.PARITY_NONE,
+                         stopbits=serial.STOPBITS_ONE)
+
+
+def init(port='pyb'):
+    # open connection
+    if port == 'pyb':
+        ser = open_pyb()
+    else:
+        ser = open_pc(port)
+    try:
+        send(ser, "radio set mod lora", "ok")
+        send(ser, "radio set freq 868000000", "ok")
+        send(ser, "radio set pwr 14", "ok")
+        send(ser, "radio set sf sf12", "ok")
+        send(ser, "radio set afcbw 125", "ok")
+        send(ser, "radio set rxbw 250", "ok")
+        send(ser, "radio set fdev 5000", "ok")
+        send(ser, "radio set prlen 8", "ok")
+        send(ser, "radio set crc on", "ok")
+        send(ser, "radio set cr 4/8", "ok")
+        send(ser, "radio set wdt 0", "ok")
+        send(ser, "radio set sync 12", "ok")
+        send(ser, "radio set bw 250", "ok")
+    except IOError:
+        # abort if configuration failed
+        print "Initial Configuration failed!"
+    else:
+        if radioModeTx:
+            set_tx_mode(ser)
+        else:
+            rxCount = 0
+            while(1):
+                set_rx_mode(ser, 1)
+                rxCount = rxCount + 1
+                print "rx packet %d" % rxCount
+    print "end"
+    ser.close()
+
+
 # execute only if run as a script
 if __name__ == "__main__":
     import argparse
@@ -79,46 +124,12 @@ if __name__ == "__main__":
     parser.add_argument('-tx', '--transmit',
                         action='store_true', help='Set Radio TX Mode')
     parser.add_argument('-p', '--port',
-                        default='ttyUSB0',
+                        default='pyb',
                         help='Serial Port ' +
-                        'e.g. ttyUSB1, tty.usbserial-A5046HZ5')
+                        'e.g. pyb, ttyUSB1, tty.usbserial-A5046HZ5')
     args = parser.parse_args()
     DEBUG = args.debug
     serPort = args.port
     radioModeTx = args.transmit
 
-    # open connection
-    with serial.Serial('/dev/' + serPort,
-                       baudrate=57600,
-                       bytesize=serial.EIGHTBITS,
-                       parity=serial.PARITY_NONE,
-                       stopbits=serial.STOPBITS_ONE) as ser:
-        # print ser.is_open
-        try:
-            send(ser, "radio set mod lora", "ok")
-            send(ser, "radio set freq 868000000", "ok")
-            send(ser, "radio set pwr 14", "ok")
-            send(ser, "radio set sf sf12", "ok")
-            send(ser, "radio set afcbw 125", "ok")
-            send(ser, "radio set rxbw 250", "ok")
-            send(ser, "radio set fdev 5000", "ok")
-            send(ser, "radio set prlen 8", "ok")
-            send(ser, "radio set crc on", "ok")
-            send(ser, "radio set cr 4/8", "ok")
-            send(ser, "radio set wdt 0", "ok")
-            send(ser, "radio set sync 12", "ok")
-            send(ser, "radio set bw 250", "ok")
-        except IOError:
-            # abort if configuration failed
-            print "Initial Configuration failed!"
-        else:
-            if radioModeTx:
-                set_tx_mode(ser)
-            else:
-                rxCount = 0
-                while(1):
-                    set_rx_mode(ser, 1)
-                    rxCount = rxCount + 1
-                    print "rx packet %d" % rxCount
-        print "end"
-        ser.close()
+    init(serPort)
