@@ -37,7 +37,7 @@ def write_to_lora(ser, strIn):
         data = b"%s\r\n" % strIn
     else:
         data = "%s\r\n" % strIn
-    ser.write(data)
+    ser.write_to_lora(data)
 
 
 def read_from_lora(ser):
@@ -65,8 +65,8 @@ def communicate_with_lora(ser, strIn, strOut=0):
 def set_rx_mode(ser, get_snr=0):
     try:
         # try to configure device as receiver
-        write_to_lora(ser, "mac pause")
-        write_to_lora(ser, "radio rx 0", "ok")
+        communicate_with_lora(ser, "mac pause")
+        communicate_with_lora(ser, "radio rx 0", "ok")
     except IOError:
         print "RX: Configuration failed!"
     else:
@@ -92,13 +92,13 @@ def set_rx_mode(ser, get_snr=0):
 def set_tx_mode(ser):
     try:
         # try to configure device as receiver
-        write_to_lora(ser, "mac pause")
+        communicate_with_lora(ser, "mac pause")
     except IOError:
         print "TX: Configuration failed!"
     else:
         try:
             # try to send data
-            write_to_lora(ser, "radio tx FF", "ok")
+            communicate_with_lora(ser, "radio tx FF", "ok")
             ret = read_from_lora()
             if ret.strip() != "radio_tx_ok":
                 raise IOError()
@@ -113,19 +113,19 @@ def init(port='pyb'):
     else:
         ser = open_from_pc(port)
     try:
-        write_to_lora(ser, "radio set mod lora", "ok")
-        write_to_lora(ser, "radio set freq 868000000", "ok")
-        write_to_lora(ser, "radio set pwr 14", "ok")
-        write_to_lora(ser, "radio set sf sf12", "ok")
-        write_to_lora(ser, "radio set afcbw 125", "ok")
-        write_to_lora(ser, "radio set rxbw 250", "ok")
-        write_to_lora(ser, "radio set fdev 5000", "ok")
-        write_to_lora(ser, "radio set prlen 8", "ok")
-        write_to_lora(ser, "radio set crc on", "ok")
-        write_to_lora(ser, "radio set cr 4/8", "ok")
-        write_to_lora(ser, "radio set wdt 0", "ok")
-        write_to_lora(ser, "radio set sync 12", "ok")
-        write_to_lora(ser, "radio set bw 250", "ok")
+        communicate_with_lora(ser, "radio set mod lora", "ok")
+        communicate_with_lora(ser, "radio set freq 868000000", "ok")
+        communicate_with_lora(ser, "radio set pwr 14", "ok")
+        communicate_with_lora(ser, "radio set sf sf12", "ok")
+        communicate_with_lora(ser, "radio set afcbw 125", "ok")
+        communicate_with_lora(ser, "radio set rxbw 250", "ok")
+        communicate_with_lora(ser, "radio set fdev 5000", "ok")
+        communicate_with_lora(ser, "radio set prlen 8", "ok")
+        communicate_with_lora(ser, "radio set crc on", "ok")
+        communicate_with_lora(ser, "radio set cr 4/8", "ok")
+        communicate_with_lora(ser, "radio set wdt 0", "ok")
+        communicate_with_lora(ser, "radio set sync 12", "ok")
+        communicate_with_lora(ser, "radio set bw 250", "ok")
     except IOError:
         print "Initial LoRa Configuration failed!"
     else:
