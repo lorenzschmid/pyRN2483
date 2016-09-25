@@ -31,7 +31,7 @@ def open_from_pc(serPort):
 
 
 # Communicate with LoRa module
-def write(ser, strIn):
+def write_to_lora(ser, strIn):
     # write bytes from PC
     if DEV == 'pc':
         data = b"%s\r\n" % strIn
@@ -40,18 +40,18 @@ def write(ser, strIn):
     ser.write(data)
 
 
-def read(ser):
+def read_from_lora(ser):
     ret = ser.readline()
     if DEBUG:
         print '>> %s' % (ret.strip())
     return ret
 
 
-def send(ser, strIn, strOut=0):
-    write(ser, strIn)
+def communicate_with_lora(ser, strIn, strOut=0):
+    write_to_lora(ser, strIn)
 
     # wait for answer
-    ret = read(ser)
+    ret = read_from_lora(ser)
 
     # if requested, verify return
     if strOut is not 0:
@@ -65,21 +65,21 @@ def send(ser, strIn, strOut=0):
 def set_rx_mode(ser, get_snr=0):
     try:
         # try to configure device as receiver
-        send(ser, "mac pause")
-        send(ser, "radio rx 0", "ok")
+        write_to_lora(ser, "mac pause")
+        write_to_lora(ser, "radio rx 0", "ok")
     except IOError:
         print "RX: Configuration failed!"
     else:
         # obtain SNR value
         if get_snr:
-            write(ser, "radio get snr")
-            snr = read(ser)
+            write_to_lora(ser, "radio get snr")
+            snr = read_from_lora(ser)
             # range -128 to 127
             print ">> SNR=%s" % snr
 
         # wait for incoming data
         print "RX: Receiving..."
-        ret = read(ser)
+        ret = read_from_lora(ser)
 
         # strip data
         ret = ret[8:].strip()
@@ -92,14 +92,14 @@ def set_rx_mode(ser, get_snr=0):
 def set_tx_mode(ser):
     try:
         # try to configure device as receiver
-        send(ser, "mac pause")
+        write_to_lora(ser, "mac pause")
     except IOError:
         print "TX: Configuration failed!"
     else:
         try:
             # try to send data
-            send(ser, "radio tx FF", "ok")
-            ret = read()
+            write_to_lora(ser, "radio tx FF", "ok")
+            ret = read_from_lora()
             if ret.strip() != "radio_tx_ok":
                 raise IOError()
         except IOError:
@@ -113,22 +113,21 @@ def init(port='pyb'):
     else:
         ser = open_from_pc(port)
     try:
-        send(ser, "radio set mod lora", "ok")
-        send(ser, "radio set freq 868000000", "ok")
-        send(ser, "radio set pwr 14", "ok")
-        send(ser, "radio set sf sf12", "ok")
-        send(ser, "radio set afcbw 125", "ok")
-        send(ser, "radio set rxbw 250", "ok")
-        send(ser, "radio set fdev 5000", "ok")
-        send(ser, "radio set prlen 8", "ok")
-        send(ser, "radio set crc on", "ok")
-        send(ser, "radio set cr 4/8", "ok")
-        send(ser, "radio set wdt 0", "ok")
-        send(ser, "radio set sync 12", "ok")
-        send(ser, "radio set bw 250", "ok")
+        write_to_lora(ser, "radio set mod lora", "ok")
+        write_to_lora(ser, "radio set freq 868000000", "ok")
+        write_to_lora(ser, "radio set pwr 14", "ok")
+        write_to_lora(ser, "radio set sf sf12", "ok")
+        write_to_lora(ser, "radio set afcbw 125", "ok")
+        write_to_lora(ser, "radio set rxbw 250", "ok")
+        write_to_lora(ser, "radio set fdev 5000", "ok")
+        write_to_lora(ser, "radio set prlen 8", "ok")
+        write_to_lora(ser, "radio set crc on", "ok")
+        write_to_lora(ser, "radio set cr 4/8", "ok")
+        write_to_lora(ser, "radio set wdt 0", "ok")
+        write_to_lora(ser, "radio set sync 12", "ok")
+        write_to_lora(ser, "radio set bw 250", "ok")
     except IOError:
-        # abort if configuration failed
-        print "Initial Configuration failed!"
+        print "Initial LoRa Configuration failed!"
     else:
         if radioModeTx:
             set_tx_mode(ser)
