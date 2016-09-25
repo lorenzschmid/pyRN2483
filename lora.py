@@ -3,9 +3,9 @@ DEV = None
 
 
 # Create connection to LoRa module
-def open_from_pyb(port=1):
+def open_from_pyb(serPort=1):
     import pyb
-    ser = pyb.UART(port, 57600)
+    ser = pyb.UART(serPort, 57600)
     ser.init(57600,
              bits=8,
              parity=None,
@@ -39,97 +39,77 @@ def open_from_pc(serPort):
 
 
 # Communicate with LoRa module
-def write_from_pc(ser, strIn):
-    # write bytes
-    ser.write(b"%s\r\n" % strIn)
-    return None
-
-
-def write_from_pyb(ser, strIn):
-    return None
-
-
-def write(ser, strIn):
+def write_to_lora(ser, strIn):
+    # write bytes from PC
     if DEV == 'pc':
-        return write_from_pc(ser, strIn)
+        data = b"%s\r\n" % strIn
     else:
-        return write_from_pyb(ser, strIn)
+        data = "%s\r\n" % strIn
+    ser.write_to_lora(data)
 
 
-def read_from_pc(ser):
+def read_from_lora(ser):
     ret = ser.readline()
     if DEBUG:
         print '>> %s' % (ret.strip())
     return ret
 
 
-def read_from_pyb(ser):
-    return None
-
-
-def read(ser):
-    if DEV == 'pc':
-        return read_from_pc(ser)
-    else:
-        return read_from_pyb(ser)
-
-
-def send(ser, strIn, strOut=0):
-    write(ser, strIn)
+def communicate_with_lora(ser, strIn, strOut=0):
+    write_to_lora(ser, strIn)
 
     # wait for answer
-    ret = read(ser)
+    ret = read_from_lora(ser)
 
     # if requested, verify return
     if strOut is not 0:
         # verify return
         if ret.strip() != strOut:
-            raise IOError()
+            raise IOError('Unexpected return value!')
     return True
 
 
 # LoRa config functions
-def set_rx_mode(ser, getsnr=0):
+def set_rx_mode(ser, get_snr=0):
     try:
         # try to configure device as receiver
-        send(ser, "mac pause")
-        send(ser, "radio rx 0", "ok")
+        communicate_with_lora(ser, "mac pause")
+        communicate_with_lora(ser, "radio rx 0", "ok")
     except IOError:
-        # abort if configuration failed
         print "RX: Configuration failed!"
     else:
+        # obtain SNR value
+        if get_snr:
+            write_to_lora(ser, "radio get snr")
+            snr = read_from_lora(ser)
+            # range -128 to 127
+            print ">> SNR=%s" % snr
+
         # wait for incoming data
         print "RX: Receiving..."
-        ret = ser.readline()
+        ret = read_from_lora(ser)
 
         # strip data
         ret = ret[8:].strip()
 
         if DEBUG:
             print ">> %s" % ret
-
-        if getsnr:
-            write(ser, "radio get snr")
-            snr = ser.readline()
-            # range -128 to 127
-            print ">> SNR=%s" % snr
         return ret
 
 
 def set_tx_mode(ser):
     try:
         # try to configure device as receiver
-        send(ser, "mac pause")
+        communicate_with_lora(ser, "mac pause")
         return True
     except IOError:
-        # abort if configuration failed
         print "TX: Configuration failed!"
         return False
 
 def lora_send(tx_data):
     try:
         # try to send data
-        send(ser, "radio tx "+str(tx_data), "ok")
+        communicate_with_lora(ser, "radio tx "+str(tx_data), "ok")
         ret = ser.readline()
         if ret.strip() != "radio_tx_ok":
             print("expecting radio_tx_ok, received:'" + ret.strip() + "'")
@@ -147,22 +127,21 @@ def init(port='pyb'):
     else:
         ser = open_from_pc(port)
     try:
-        send(ser, "radio set mod lora", "ok")
-        send(ser, "radio set freq 868000000", "ok")
-        send(ser, "radio set pwr 14", "ok")
-        send(ser, "radio set sf sf12", "ok")
-        send(ser, "radio set afcbw 125", "ok")
-        send(ser, "radio set rxbw 250", "ok")
-        send(ser, "radio set fdev 5000", "ok")
-        send(ser, "radio set prlen 8", "ok")
-        send(ser, "radio set crc on", "ok")
-        send(ser, "radio set cr 4/8", "ok")
-        send(ser, "radio set wdt 0", "ok")
-        send(ser, "radio set sync 12", "ok")
-        send(ser, "radio set bw 250", "ok")
+        communicate_with_lora(ser, "radio set mod lora", "ok")
+        communicate_with_lora(ser, "radio set freq 868000000", "ok")
+        communicate_with_lora(ser, "radio set pwr 14", "ok")
+        communicate_with_lora(ser, "radio set sf sf12", "ok")
+        communicate_with_lora(ser, "radio set afcbw 125", "ok")
+        communicate_with_lora(ser, "radio set rxbw 250", "ok")
+        communicate_with_lora(ser, "radio set fdev 5000", "ok")
+        communicate_with_lora(ser, "radio set prlen 8", "ok")
+        communicate_with_lora(ser, "radio set crc on", "ok")
+        communicate_with_lora(ser, "radio set cr 4/8", "ok")
+        communicate_with_lora(ser, "radio set wdt 0", "ok")
+        communicate_with_lora(ser, "radio set sync 12", "ok")
+        communicate_with_lora(ser, "radio set bw 250", "ok")
     except IOError:
-        # abort if configuration failed
-        print "Initial Configuration failed!"
+        print "Initial LoRa Configuration failed!"
     else:
         if radioModeTx:
             set_tx_mode(ser)
