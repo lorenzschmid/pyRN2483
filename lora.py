@@ -31,7 +31,7 @@ class LoRa(object):
                          stop=1)
             # error handling
             except:
-                return IOError("Failed to create serial connection to LoRa " +
+                return OSError("Failed to create serial connection to LoRa " +
                                "module.")
 
         else:
@@ -47,10 +47,10 @@ class LoRa(object):
                                     stopbits=serial.STOPBITS_ONE)
             # error handling
             except SerialException:
-                return IOError("Failed to create serial connection to LoRa " +
+                return OSError("Failed to create serial connection to LoRa " +
                                "module: no device at given port.")
             except ValueError:
-                return IOError("Failed to create serial connection to LoRa " +
+                return OSError("Failed to create serial connection to LoRa " +
                                "module: Wrong configuration parameter given.")
 
         self.parent_ser = ser
@@ -97,7 +97,7 @@ class LoRa(object):
         if strOut is not 0:
             # verify return
             if ret.strip() != strOut:
-                raise IOError("Unexpected return value upon serial " +
+                raise OSError("Unexpected return value upon serial " +
                               "transmission with parent device.")
 
     # LoRa communication functions
@@ -106,8 +106,8 @@ class LoRa(object):
             # try to configure device as receiver
             self.ser_write_read_verify("mac pause")
             self.ser_write_read_verify("radio rx 0", "ok")
-        except IOError:
-            raise IOError("LoRa modul could not be configured as receiver.")
+        except OSError:
+            raise OSError("LoRa modul could not be configured as receiver.")
         else:
             # obtain SNR value
             if DEBUG:
@@ -116,16 +116,16 @@ class LoRa(object):
                     snr = self.ser_read()
                     # range -128 to 127
                     print("RX: SNR=%s" % snr)
-                except IOError:
-                    raise IOError("Could not obtain SNR value of LoRa module.")
+                except OSError:
+                    raise OSError("Could not obtain SNR value of LoRa module.")
 
             # wait for incoming data
             if DEBUG:
                 print("RX: Receiving...")
             try:
                 ret = self.ser_read()
-            except IOError:
-                raise IOError("Error while in receiver mode.")
+            except OSError:
+                raise OSError("Error while in receiver mode.")
             else:
                 # strip data
                 ret = ret[8:].strip()
@@ -138,8 +138,8 @@ class LoRa(object):
         # try to configure device as receiver
         try:
             self.ser_write_read_verify("mac pause")
-        except IOError:
-            raise IOError("LoRa module could not be configured as " +
+        except OSError:
+            raise OSError("LoRa module could not be configured as " +
                           "transmitter.")
 
         if DEBUG:
@@ -151,9 +151,9 @@ class LoRa(object):
             # read out send verification
             ret = self.ser_read()
             if ret.strip() != "radio_tx_ok":
-                raise IOError("Missing sent confirmation upon transmission.")
-        except IOError:
-            raise IOError("Error while sending data.")
+                raise OSError("Missing sent confirmation upon transmission.")
+        except OSError:
+            raise OSError("Error while sending data.")
         else:
             if DEBUG:
                 print("TX: " + str(tx_data))
@@ -182,8 +182,8 @@ class LoRa(object):
             self.ser_write_read_verify("radio set sync 12", "ok")
             self.ser_write_read_verify("radio set bw 250", "ok")
 
-        except IOError:
-            raise IOError("Initial LoRa Configuration failed.")
+        except OSError:
+            raise OSError("Initial LoRa Configuration failed.")
         else:
             if DEBUG:
                 print ("Connection established and configuration of LoRa " +
@@ -213,10 +213,10 @@ if __name__ == "__main__":
                         'e.g. pyb, ttyUSB1, tty.usbserial-A5046HZ5')
     args = parser.parse_args()
     DEBUG = args.debug
-    serPort = args.port
+    ser_port = args.port
     tx_data = args.transmit
 
-    lora = LoRa(serPort)
+    lora = LoRa(ser_port)
     if tx_data != "":
         lora.send(tx_data)
     else:
