@@ -1,41 +1,55 @@
-DEBUG = True
-DEV = None
+
+class LoRa(object):
+
+    DEBUG = True
+    parent_ser = None
+    parent_dev = None
+
+    # Create connection to LoRa module
+    def open(serPort=1, parent_dev='pyb'):
+        if parent_dev == 'pyb':
+            # via micropython board
+            import pyb
+
+            # try to connect
+            try:
+                ser = pyb.UART(serPort, 57600)
+                ser.init(57600,
+                         bits=8,
+                         parity=None,
+                         stop=1)
+            # error handling
+            except:
+                return IOError("Failed to create serial connection to LoRa " +
+                               "module.")
+
+        else:
+            # via computer
+            import serial
+
+            # try to connect
+            try:
+                ser = serial.Serial('/dev/' + serPort,
+                                    baudrate=57600,
+                                    bytesize=serial.EIGHTBITS,
+                                    parity=serial.PARITY_NONE,
+                                    stopbits=serial.STOPBITS_ONE)
+            # error handling
+            except SerialException:
+                return IOError("Failed to create serial connection to LoRa " +
+                               "module: no device at given port.")
+            except ValueError:
+                return IOError("Failed to create serial connection to LoRa " +
+                               "module: Wrong configuration parameter given.")
+
+        self.parent_ser = ser
+        self.parent_dev = parent_dev
 
 
-# Create connection to LoRa module
-def open_from_pyb(serPort=1):
-    import pyb
-    ser = pyb.UART(serPort, 57600)
-    ser.init(57600,
-             bits=8,
-             parity=None,
-             stop=1)
+    def __init__(self, arg):
+        super(LoRa, self).__init__()
+        self.arg = arg
 
-    global DEV
-    DEV = 'pyb'
-
-    return ser
-
-
-def open_from_pc(serPort):
-    import serial
-    # import ast
-    # read config file
-    # with open('deed.txt', 'r') as f:
-    #     s = f.read()
-    #     config = ast.literal_eval(s)
-    #     print(config)
-    #     serPor = config['COM']
-
-    ser = serial.Serial('/dev/' + serPort,
-                        baudrate=57600,
-                        bytesize=serial.EIGHTBITS,
-                        parity=serial.PARITY_NONE,
-                        stopbits=serial.STOPBITS_ONE)
-    global DEV
-    DEV = 'pc'
-
-    return ser
 
 
 # Communicate with LoRa module
