@@ -1,12 +1,14 @@
+DEBUG = True
+
 
 class LoRa(object):
 
-    DEBUG = True
+    # Attributs
     parent_ser = None
     parent_dev = None
 
     # Helper Function
-    def running_on_pyb(self):
+    def set_parent_dev(self):
         try:
             import pyb
         except:
@@ -69,12 +71,14 @@ class LoRa(object):
 
         # write data to parent device
         self.parent_ser.write(data)
+        if DEBUG:
+            print("SW: %s" % data)
 
     def ser_read(self):
         # read one line from parent device
         ret = self.parent_ser.readline()
         if DEBUG:
-            print(">> %s" % (ret.strip()))
+            print("SR: %s" % (ret.strip()))
 
         # format output string
         if self.parent_dev == 'pc':
@@ -97,7 +101,7 @@ class LoRa(object):
                               "transmission with parent device.")
 
     # LoRa communication functions
-    def recv(self, get_snr=False):
+    def recv(self):
         try:
             # try to configure device as receiver
             self.ser_write_read_verify("mac pause")
@@ -106,17 +110,18 @@ class LoRa(object):
             raise IOError("LoRa modul could not be configured as receiver.")
         else:
             # obtain SNR value
-            if get_snr:
+            if DEBUG:
                 try:
                     self.ser_write("radio get snr")
                     snr = self.ser_read()
                     # range -128 to 127
-                    print(">> SNR=%s" % snr)
+                    print("RX: SNR=%s" % snr)
                 except IOError:
                     raise IOError("Could not obtain SNR value of LoRa module.")
 
             # wait for incoming data
-            print("RX: Receiving...")
+            if DEBUG:
+                print("RX: Receiving...")
             try:
                 ret = self.ser_read()
             except IOError:
@@ -126,7 +131,7 @@ class LoRa(object):
                 ret = ret[8:].strip()
 
                 if DEBUG:
-                    print(">> %s" % ret)
+                    print("RX: %s" % ret)
                 return ret
 
     def send(self, tx_data):
@@ -137,6 +142,8 @@ class LoRa(object):
             raise IOError("LoRa module could not be configured as " +
                           "transmitter.")
 
+        if DEBUG:
+            print("TX: Sending...")
         try:
             # send data
             self.ser_write_read_verify("radio tx " + str(tx_data), "ok")
@@ -146,16 +153,16 @@ class LoRa(object):
             if ret.strip() != "radio_tx_ok":
                 raise IOError("Missing sent confirmation upon transmission.")
         except IOError:
-            print("Error while sending data.")
+            raise IOError("Error while sending data.")
         else:
             if DEBUG:
-                print("Sent Data: " + str(tx_data))
+                print("TX: " + str(tx_data))
 
     # Constructor
     def __init__(self, port):
         try:
             # get parent device
-            self.running_on_pyb()
+            self.set_parent_dev()
 
             # open serial connection on parent device
             self.open(port)
