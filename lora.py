@@ -45,7 +45,7 @@ def write_to_lora(ser, strIn):
         data = b"%s\r\n" % strIn
     else:
         data = "%s\r\n" % strIn
-    ser.write_to_lora(data)
+    ser.write(data)
 
 
 def read_from_lora(ser):
@@ -97,27 +97,24 @@ def set_rx_mode(ser, get_snr=0):
         return ret
 
 
-def set_tx_mode(ser):
+def lora_set_tx_mode(ser):
     try:
         # try to configure device as receiver
         communicate_with_lora(ser, "mac pause")
-        return True
     except IOError:
         print "TX: Configuration failed!"
-        return False
 
-def lora_send(tx_data):
+def lora_send(ser, tx_data):
     try:
         # try to send data
-        communicate_with_lora(ser, "radio tx "+str(tx_data), "ok")
-        ret = ser.readline()
+        communicate_with_lora(ser, "radio tx "+ str(tx_data), "ok")
+        ret = read_from_lora(ser)
         if ret.strip() != "radio_tx_ok":
             print("expecting radio_tx_ok, received:'" + ret.strip() + "'")
             raise IOError()
+        print("Sent Data: "+str(tx_data))
     except IOError:
         print "TX: Failed to Send!"
-    else:
-        #read rx data here!
 
 
 def init(port='pyb'):
@@ -144,7 +141,8 @@ def init(port='pyb'):
         print "Initial LoRa Configuration failed!"
     else:
         if radioModeTx:
-            set_tx_mode(ser)
+            lora_set_tx_mode(ser)
+            lora_send(ser, "FF")
         else:
             rxCount = 0
             while(1):
