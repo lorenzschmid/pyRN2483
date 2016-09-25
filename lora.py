@@ -206,7 +206,7 @@ if __name__ == "__main__":
                         action='store_true', help='debug mode')
     parser.add_argument('-tx', '--transmit',
                         default='',
-                        action='store_true', help='Data to transmit')
+                        help='Data to transmit')
     parser.add_argument('-p', '--port',
                         default='ttyUSB0',
                         help='Serial Port ' +
