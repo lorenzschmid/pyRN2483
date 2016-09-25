@@ -3,9 +3,9 @@ DEV = None
 
 
 # Create connection to LoRa module
-def open_from_pyb(port=1):
+def open_from_pyb(serPort=1):
     import pyb
-    ser = pyb.UART(port, 57600)
+    ser = pyb.UART(serPort, 57600)
     ser.init(57600,
              bits=8,
              parity=None,
@@ -31,39 +31,20 @@ def open_from_pc(serPort):
 
 
 # Communicate with LoRa module
-def write_from_pc(ser, strIn):
-    # write bytes
-    ser.write(b"%s\r\n" % strIn)
-    return None
-
-
-def write_from_pyb(ser, strIn):
-    return None
-
-
 def write(ser, strIn):
+    # write bytes from PC
     if DEV == 'pc':
-        return write_from_pc(ser, strIn)
+        data = b"%s\r\n" % strIn
     else:
-        return write_from_pyb(ser, strIn)
+        data = "%s\r\n" % strIn
+    ser.write(data)
 
 
-def read_from_pc(ser):
+def read(ser):
     ret = ser.readline()
     if DEBUG:
         print '>> %s' % (ret.strip())
     return ret
-
-
-def read_from_pyb(ser):
-    return None
-
-
-def read(ser):
-    if DEV == 'pc':
-        return read_from_pc(ser)
-    else:
-        return read_from_pyb(ser)
 
 
 def send(ser, strIn, strOut=0):
@@ -76,35 +57,35 @@ def send(ser, strIn, strOut=0):
     if strOut is not 0:
         # verify return
         if ret.strip() != strOut:
-            raise IOError()
+            raise IOError('Unexpected return value!')
     return True
 
 
 # LoRa config functions
-def set_rx_mode(ser, getsnr=0):
+def set_rx_mode(ser, get_snr=0):
     try:
         # try to configure device as receiver
         send(ser, "mac pause")
         send(ser, "radio rx 0", "ok")
     except IOError:
-        # abort if configuration failed
         print "RX: Configuration failed!"
     else:
+        # obtain SNR value
+        if get_snr:
+            write(ser, "radio get snr")
+            snr = read(ser)
+            # range -128 to 127
+            print ">> SNR=%s" % snr
+
         # wait for incoming data
         print "RX: Receiving..."
-        ret = ser.readline()
+        ret = read(ser)
 
         # strip data
         ret = ret[8:].strip()
 
         if DEBUG:
             print ">> %s" % ret
-
-        if getsnr:
-            write(ser, "radio get snr")
-            snr = ser.readline()
-            # range -128 to 127
-            print ">> SNR=%s" % snr
         return ret
 
 
@@ -113,15 +94,13 @@ def set_tx_mode(ser):
         # try to configure device as receiver
         send(ser, "mac pause")
     except IOError:
-        # abort if configuration failed
         print "TX: Configuration failed!"
     else:
         try:
             # try to send data
             send(ser, "radio tx FF", "ok")
-            ret = ser.readline()
+            ret = read()
             if ret.strip() != "radio_tx_ok":
-                print("expecting radio_tx_ok, received:'" + ret.strip() + "'")
                 raise IOError()
         except IOError:
             print "TX: Failed to Send!"
