@@ -1,19 +1,76 @@
-import serial
+DEBUG = True
+DEV = None
 
 
-# Functions
-def send_no_ack(ser, strIn):
+# Create connection to LoRa module
+def open_from_pyb(port=1):
+    import pyb
+    ser = pyb.UART(port, 57600)
+    ser.init(57600,
+             bits=8,
+             parity=None,
+             stop=1)
+
+    global DEV
+    DEV = 'pyb'
+
+    return ser
+
+
+def open_from_pc(serPort):
+    import serial
+    ser = serial.Serial('/dev/' + serPort,
+                        baudrate=57600,
+                        bytesize=serial.EIGHTBITS,
+                        parity=serial.PARITY_NONE,
+                        stopbits=serial.STOPBITS_ONE)
+    global DEV
+    DEV = 'pc'
+
+    return ser
+
+
+# Communicate with LoRa module
+def write_from_pc(ser, strIn):
     # write bytes
     ser.write(b"%s\r\n" % strIn)
+    return None
+
+
+def write_from_pyb(ser, strIn):
+    return None
+
+
+def write(ser, strIn):
+    if DEV == 'pc':
+        return write_from_pc(ser, strIn)
+    else:
+        return write_from_pyb(ser, strIn)
+
+
+def read_from_pc(ser):
+    ret = ser.readline()
+    if DEBUG:
+        print '>> %s' % (ret.strip())
+    return ret
+
+
+def read_from_pyb(ser):
+    return None
+
+
+def read(ser):
+    if DEV == 'pc':
+        return read_from_pc(ser)
+    else:
+        return read_from_pyb(ser)
 
 
 def send(ser, strIn, strOut=0):
-    send_no_ack(ser, strIn)
+    write(ser, strIn)
 
     # wait for answer
-    ret = ser.readline()
-    if DEBUG:
-        print ">> %s" % ret.strip()
+    ret = read(ser)
 
     # if requested, verify return
     if strOut is not 0:
@@ -23,6 +80,7 @@ def send(ser, strIn, strOut=0):
     return True
 
 
+# LoRa config functions
 def set_rx_mode(ser, getsnr=0):
     try:
         # try to configure device as receiver
@@ -43,7 +101,7 @@ def set_rx_mode(ser, getsnr=0):
             print ">> %s" % ret
 
         if getsnr:
-            send_no_ack(ser, "radio get snr")
+            write(ser, "radio get snr")
             snr = ser.readline()
             # range -128 to 127
             print ">> SNR=%s" % snr
@@ -68,25 +126,13 @@ def set_tx_mode(ser):
         except IOError:
             print "TX: Failed to Send!"
 
-def open_pyb(port = 1):
-    ser = UART(port, 57600)                      # init with given baudrate
-    ser.init(57600, bits=8, parity=None, stop=1) # init with given parameters
-    return ser
-
-def open_pc(serPort):
-    return serial.Serial('/dev/' + serPort,
-                         baudrate=57600,
-                         bytesize=serial.EIGHTBITS,
-                         parity=serial.PARITY_NONE,
-                         stopbits=serial.STOPBITS_ONE)
-
 
 def init(port='pyb'):
     # open connection
     if port == 'pyb':
-        ser = open_pyb()
+        ser = open_from_pyb()
     else:
-        ser = open_pc(port)
+        ser = open_from_pc(port)
     try:
         send(ser, "radio set mod lora", "ok")
         send(ser, "radio set freq 868000000", "ok")
