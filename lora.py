@@ -19,6 +19,14 @@ def open_from_pyb(port=1):
 
 def open_from_pc(serPort):
     import serial
+    import ast
+    # read config file
+    # with open('deed.txt', 'r') as f:
+    #     s = f.read()
+    #     config = ast.literal_eval(s)
+    #     print(config)
+    #     serPor = config['COM']
+
     ser = serial.Serial('/dev/' + serPort,
                         baudrate=57600,
                         bytesize=serial.EIGHTBITS,
@@ -112,19 +120,24 @@ def set_tx_mode(ser):
     try:
         # try to configure device as receiver
         send(ser, "mac pause")
+        return True
     except IOError:
         # abort if configuration failed
         print "TX: Configuration failed!"
+        return False
+
+def lora_send(tx_data):
+    try:
+        # try to send data
+        send(ser, "radio tx "+str(tx_data), "ok")
+        ret = ser.readline()
+        if ret.strip() != "radio_tx_ok":
+            print("expecting radio_tx_ok, received:'" + ret.strip() + "'")
+            raise IOError()
+    except IOError:
+        print "TX: Failed to Send!"
     else:
-        try:
-            # try to send data
-            send(ser, "radio tx FF", "ok")
-            ret = ser.readline()
-            if ret.strip() != "radio_tx_ok":
-                print("expecting radio_tx_ok, received:'" + ret.strip() + "'")
-                raise IOError()
-        except IOError:
-            print "TX: Failed to Send!"
+        #read rx data here!
 
 
 def init(port='pyb'):
@@ -174,7 +187,7 @@ if __name__ == "__main__":
     parser.add_argument('-tx', '--transmit',
                         action='store_true', help='Set Radio TX Mode')
     parser.add_argument('-p', '--port',
-                        default='pyb',
+                        default='ttyUSB0',
                         help='Serial Port ' +
                         'e.g. pyb, ttyUSB1, tty.usbserial-A5046HZ5')
     args = parser.parse_args()
