@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import binascii
 
 # Module specific Exception
 class ConnectionError(Exception):
@@ -212,6 +212,21 @@ class LoRa(object):
             if self._debug:
                 print("LoRa:send : " + str(tx_data))
 
+    def send_str(self, tx_str):
+        self.send(binascii.hexlify(tx_str))
+
+    def recv_str(self):
+        rx_data = self.recv()
+        text = ""
+        try:
+            text = binascii.unhexlify(rx_data)
+        except (TypeError) as e:
+            raise ReceptionError("Received data has odd length")
+            if(len(rx_data) > 2):
+                text = binascii.unhexlify(rx_data[:-1])
+        return text
+
+
     # Constructor
     def __init__(self, port, timeout=1000, debug=False):
         self._read_timeout = timeout
@@ -290,13 +305,13 @@ if __name__ == "__main__":
     # start operation
     if tx_data != "":
         try:
-            lora.send(tx_data)
+            lora.send_str(tx_data)
         except (ConfigurationError, TransmissionError) as e:
             print("Error occurred: " + str(e))
     else:
         while True:
             try:
-                lora.recv()
+                lora.recv_str()
             except (ConfigurationError, ReceptionError) as e:
                 print("Error occurred: " + str(e))
                 break
