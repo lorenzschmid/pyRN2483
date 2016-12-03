@@ -1,38 +1,52 @@
-DEBUG = True
+#! /usr/bin/python 3
+
+
+# Module specific Exception
+class ConnectionError(Exception):
+    pass
+
+
+class TransmissionError(Exception):
+    pass
+
+
+class ReceptionError(Exception):
+    pass
+
+
+class ConfigurationError(Exception):
+    pass
 
 
 class LoRa(object):
 
-    # Attributs
-    parent_ser = None
-    parent_dev = None
-
     # Helper Function
-    def set_parent_dev(self):
+    def _set_parent_dev(self):
         try:
             import pyb
         except:
-            self.parent_dev = 'pc'
+            self._parent_dev = 'pc'
         else:
-            self.parent_dev = 'pyb'
+            self._parent_dev = 'pyb'
 
     # Create connection to LoRa module from parent device
-    def open(self, serPort=1):
-        if self.parent_dev == 'pyb':
+    def _open(self, serPort=1):
+        if self._parent_dev == 'pyb':
             # via micropython board
             import pyb
 
             # try to connect
             try:
                 ser = pyb.UART(serPort, 57600)
-                ser.init(57600,
+                ser.init(baudrate=57600,
                          bits=8,
                          parity=None,
-                         stop=1)
+                         stop=1,
+                         timeout=self._read_timeout,
+                         timeout_char=self._read_timeout)
             # error handling
             except:
-                return OSError("Failed to create serial connection to LoRa " +
-                               "module.")
+                raise ConnectionError("No LoRa module found.")
 
         else:
             # via computer
@@ -44,156 +58,198 @@ class LoRa(object):
                                     baudrate=57600,
                                     bytesize=serial.EIGHTBITS,
                                     parity=serial.PARITY_NONE,
-                                    stopbits=serial.STOPBITS_ONE)
+                                    stopbits=serial.STOPBITS_ONE,
+                                    read_timeout=self._read_timeout)
             # error handling
-            except SerialException:
-                return OSError("Failed to create serial connection to LoRa " +
-                               "module: no device at given port.")
+            except serial.SerialException:
+                raise ConnectionError("No LoRa module at given port.")
             except ValueError:
-                return OSError("Failed to create serial connection to LoRa " +
-                               "module: Wrong configuration parameter given.")
+                raise ConnectionError("Wrong configuration parameter given.")
 
-        self.parent_ser = ser
+        self.port = serPort
+        self._parent_ser = ser
 
     # End connection to parent device
-    def close(self):
+    def _close(self):
         if self.parent_dev == 'pc':
-            self.parent_ser.close()
+            self._parent_ser.close()
 
     # Communicate with LoRa module via parent device
-    def ser_write(self, strIn):
-        # format input string
-        if self.parent_dev == 'pc':
-            data = "%s\r\n" % strIn
+    def _ser_write(self, strIn):
+        # reset error handling flags
+        transmit_failed = False
+        transmit_incomplete = False
+
+        if self._parent_dev == 'pc':
+            # format input string
+            data = "%s\r\n".format(strIn)
             data = data.encode('utf-8')
+
+            # try to send data (blocking)
+            try:
+                transmitted_bytes = self._parent_ser.write(data)
+            except serial.SerialTimeoutException:
+                transmit_failed = True
+            else:
+                if transmitted_bytes < len(data):
+                    transmit_incomplete = True
         else:
-            data = "%s\r\n" % strIn
+            # format input string
+            data = "%s\r\n".format(strIn)
 
-        # write data to parent device
-        self.parent_ser.write(data)
-        if DEBUG:
-            print("SW: %s" % data)
+            # send data (blocking)
+            transmitted_bytes = self._parent_ser.write(data)
 
-    def ser_read(self):
-        # read one line from parent device
-        ret = self.parent_ser.readline()
-        if DEBUG:
-            print("SR: %s" % (ret.strip()))
+            # verify transmit
+            if transmitted_bytes == 0:
+                transmit_failed = True
+            elif transmitted_bytes < len(data):
+                transmit_incomplete = True
+
+        # error handling
+        if transmit_failed:
+            raise TransmissionError("Write failed due to timeout.")
+        if transmit_incomplete:
+            raise TransmissionError("Write was incomplete.")
+
+        # debugging
+        if self._debug:
+            print("LoRa:_ser_write : %s" % data)
+
+    def _ser_read(self):
+        # read one line from parent device (blocking)
+        received_bytes = self.parent_ser.readline()
+
+        # verification
+        if received_bytes is None or received_bytes == 0:
+            raise ReceptionError("Timeout occurred during reception.")
+
+        # debugging
+        if self._debug:
+            print("LoRa:_ser_read : %s".format(received_bytes.strip()))
 
         # format output string
         if self.parent_dev == 'pc':
-            ret = ret.decode('utf-8')
+            received_bytes = received_bytes.decode('utf-8')
 
-        return ret
+        return received_bytes
 
-    def ser_write_read_verify(self, strIn, strOut=0):
-        # send data
-        self.ser_write(strIn)
+    def _ser_write_read_verify(self, strIn, strOut=0):
+        # transmit data
+        self._ser_write(strIn)
 
         # wait for answer
-        ret = self.ser_read()
+        answer = self._ser_read()
 
         # if requested, verify return
         if strOut is not 0:
-            # verify return
-            if ret.strip() != strOut:
-                raise OSError("Unexpected return value upon serial " +
-                              "transmission with parent device.")
+            if answer.strip() != strOut:
+                raise ReceptionError("Transmitted and received string are " +
+                                     "not corresponding.")
+
+        return answer
 
     # LoRa communication functions
     def recv(self):
-        try:
-            # try to configure device as receiver
-            self.ser_write_read_verify("mac pause")
-            self.ser_write_read_verify("radio rx 0", "ok")
-        except OSError:
-            raise OSError("LoRa modul could not be configured as receiver.")
-        else:
-            # obtain SNR value
-            if DEBUG:
-                try:
-                    self.ser_write("radio get snr")
-                    snr = self.ser_read()
-                    # range -128 to 127
-                    print("RX: SNR=%s" % snr)
-                except OSError:
-                    raise OSError("Could not obtain SNR value of LoRa module.")
-
-            # wait for incoming data
-            if DEBUG:
-                print("RX: Receiving...")
-            try:
-                ret = self.ser_read()
-            except OSError:
-                raise OSError("Error while in receiver mode.")
-            else:
-                # strip data
-                ret = ret[8:].strip()
-
-                if DEBUG:
-                    print("RX: %s" % ret)
-                return ret
-
-    def send(self, tx_data):
         # try to configure device as receiver
         try:
-            self.ser_write_read_verify("mac pause")
-        except OSError:
-            raise OSError("LoRa module could not be configured as " +
-                          "transmitter.")
+            self._ser_write_read_verify("mac pause")
+            self._ser_write_read_verify("radio rx 0", "ok")
+        except (TransmissionError, ReceptionError):
+            raise ConfigurationError("Configuration as receiver failed.")
+        else:
+            # obtain SNR value
+            if self._debug:
+                try:
+                    self._ser_write("radio get snr")
+                    snr = self._ser_read()
+                    # range -128 to 127
+                    print("LoRa:recv : SNR = %d".format(snr))
+                except ReceptionError:
+                    raise ConfigurationError("Could not obtain SNR value.")
 
-        if DEBUG:
-            print("TX: Sending...")
+            # wait for incoming data
+            if self._debug:
+                print("LoRa:recv : Receiving...")
+            try:
+                received_data = self._ser_read()
+            except ReceptionError as e:
+                raise e
+            else:
+                # strip data
+                received_data = received_data[8:].strip()
+
+                if self._debug:
+                    print("LoRa:recv : %s".format(received_data))
+
+                return received_data
+
+    def send(self, tx_data):
+        # try to configure device as transmitter
+        try:
+            self._ser_write_read_verify("mac pause")
+        except (TransmissionError, ReceptionError):
+            raise ConfigurationError("Configuration as transmitter failed.")
+
+        if self._debug:
+            print("LoRa:send : Sending...")
         try:
             # send data
-            self.ser_write_read_verify("radio tx " + str(tx_data), "ok")
+            self._ser_write_read_verify("radio tx " + str(tx_data), "ok")
 
-            # read out send verification
-            ret = self.ser_read()
+            # read out transmission verification
+            ret = self._ser_read()
             if ret.strip() != "radio_tx_ok":
-                raise OSError("Missing sent confirmation upon transmission.")
-        except OSError:
-            raise OSError("Error while sending data.")
+                raise TransmissionError("No transmission confirmation " +
+                                        "received.")
+        except (TransmissionError, ReceptionError):
+            raise TransmissionError("Error while sending.")
         else:
-            if DEBUG:
-                print("TX: " + str(tx_data))
+            if self._debug:
+                print("LoRa:send : " + str(tx_data))
 
     # Constructor
-    def __init__(self, port):
+    def __init__(self, port, timeout=1000, debug=False):
+        self._read_timeout = timeout
+        self._debug = debug
+
         try:
             # get parent device
-            self.set_parent_dev()
+            self._set_parent_dev()
 
             # open serial connection on parent device
-            self.open(port)
+            self._open(port)
 
             # configure LoRa module via parent device
-            self.ser_write_read_verify("radio set mod lora", "ok")
-            self.ser_write_read_verify("radio set freq 868000000", "ok")
-            self.ser_write_read_verify("radio set pwr 14", "ok")
-            self.ser_write_read_verify("radio set sf sf12", "ok")
-            self.ser_write_read_verify("radio set afcbw 125", "ok")
-            self.ser_write_read_verify("radio set rxbw 250", "ok")
-            self.ser_write_read_verify("radio set fdev 5000", "ok")
-            self.ser_write_read_verify("radio set prlen 8", "ok")
-            self.ser_write_read_verify("radio set crc on", "ok")
-            self.ser_write_read_verify("radio set cr 4/8", "ok")
-            self.ser_write_read_verify("radio set wdt 0", "ok")
-            self.ser_write_read_verify("radio set sync 12", "ok")
-            self.ser_write_read_verify("radio set bw 250", "ok")
+            self._ser_write_read_verify("radio set mod lora", "ok")
+            self._ser_write_read_verify("radio set freq 868000000", "ok")
+            self._ser_write_read_verify("radio set pwr 14", "ok")
+            self._ser_write_read_verify("radio set sf sf12", "ok")
+            self._ser_write_read_verify("radio set afcbw 125", "ok")
+            self._ser_write_read_verify("radio set rxbw 250", "ok")
+            self._ser_write_read_verify("radio set fdev 5000", "ok")
+            self._ser_write_read_verify("radio set prlen 8", "ok")
+            self._ser_write_read_verify("radio set crc on", "ok")
+            self._ser_write_read_verify("radio set cr 4/8", "ok")
+            self._ser_write_read_verify("radio set wdt 0", "ok")
+            self._ser_write_read_verify("radio set sync 12", "ok")
+            self._ser_write_read_verify("radio set bw 250", "ok")
 
-        except OSError:
-            raise OSError("Initial LoRa Configuration failed.")
+        except (TransmissionError, ReceptionError):
+            raise ConfigurationError("Initial configuration failed.")
         else:
-            if DEBUG:
-                print ("Connection established and configuration of LoRa " +
-                       "module completed succesfuly.")
+            if self._debug:
+                print("LoRa:__init__ : Connection established and " +
+                      "configuration completed successfully.")
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
+        self._close()
+
+    def __repr__(self):
+        return "<LoRa module connection on port %d>".format(self.port)
 
 
 # execute only if run as a script
@@ -212,12 +268,26 @@ if __name__ == "__main__":
                         help='Serial Port ' +
                         'e.g. pyb, ttyUSB1, tty.usbserial-A5046HZ5')
     args = parser.parse_args()
-    DEBUG = args.debug
-    ser_port = args.port
+
+    debug = args.debug
+    serial_port = args.port
     tx_data = args.transmit
 
-    lora = LoRa(ser_port)
+    # create connection
+    try:
+        lora = LoRa(serial_port, debug)
+    except ConfigurationError as e:
+        print("Error occurred: " + e)
+
+    # start operation
     if tx_data != "":
-        lora.send(tx_data)
+        try:
+            lora.send(tx_data)
+        except (ConfigurationError, TransmissionError) as e:
+            print("Error occurred: " + e)
     else:
-        lora.recv()
+        while True:
+            try:
+                lora.recv()
+            except (ConfigurationError, ReceptionError) as e:
+                print("Error occurred: " + e)
