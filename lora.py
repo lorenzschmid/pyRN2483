@@ -120,17 +120,13 @@ class LoRa(object):
         # read one line from parent device (blocking)
         received_bytes = self._parent_ser.readline()
 
-        # verification
+        # verification of timeout
         if received_bytes is None or len(received_bytes) == 0:
             raise ReceptionError("Timeout occurred during reception.")
 
         # format output string
         if self._parent_dev == 'pc':
             received_bytes = received_bytes.decode('utf-8')
-
-        # second verification
-        if received_bytes.strip() == 'busy':
-            raise ReceptionError("Transmitter is busy.")
 
         # debugging
         if self._debug:
@@ -148,8 +144,13 @@ class LoRa(object):
         # if requested, verify return
         if strOut is not 0:
             if answer.strip() != strOut:
-                raise ReceptionError("Transmitted and received string are " +
-                                     "not corresponding.")
+                # exception if LoRa module is already receiving and set to be
+                # receiving again it will respond "busy" instead of "ok"
+                if strIn.startswith('radio rx ') and answer.strip() == 'busy':
+                    pass
+                else:
+                    raise ReceptionError("Transmitted and received string " +
+                                         "are not corresponding.")
 
         return answer
 
