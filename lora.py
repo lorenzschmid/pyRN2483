@@ -1,4 +1,4 @@
-#! /usr/bin/python 3
+#!/usr/bin/env python3
 
 
 # Module specific Exception
@@ -59,7 +59,7 @@ class LoRa(object):
                                     bytesize=serial.EIGHTBITS,
                                     parity=serial.PARITY_NONE,
                                     stopbits=serial.STOPBITS_ONE,
-                                    read_timeout=self._read_timeout)
+                                    timeout=self._read_timeout)
             # error handling
             except serial.SerialException:
                 raise ConnectionError("No LoRa module at given port.")
@@ -71,7 +71,7 @@ class LoRa(object):
 
     # End connection to parent device
     def _close(self):
-        if self.parent_dev == 'pc':
+        if self._parent_dev == 'pc':
             self._parent_ser.close()
 
     # Communicate with LoRa module via parent device
@@ -82,7 +82,7 @@ class LoRa(object):
 
         if self._parent_dev == 'pc':
             # format input string
-            data = "%s\r\n".format(strIn)
+            data = "{}\r\n".format(strIn)
             data = data.encode('utf-8')
 
             # try to send data (blocking)
@@ -95,7 +95,7 @@ class LoRa(object):
                     transmit_incomplete = True
         else:
             # format input string
-            data = "%s\r\n".format(strIn)
+            data = "{}\r\n".format(strIn)
 
             # send data (blocking)
             transmitted_bytes = self._parent_ser.write(data)
@@ -114,23 +114,27 @@ class LoRa(object):
 
         # debugging
         if self._debug:
-            print("LoRa:_ser_write : %s" % data)
+            print("LoRa:_ser_write : {}".format(data))
 
     def _ser_read(self):
         # read one line from parent device (blocking)
-        received_bytes = self.parent_ser.readline()
+        received_bytes = self._parent_ser.readline()
 
         # verification
-        if received_bytes is None or received_bytes == 0:
+        if received_bytes is None or len(received_bytes) == 0:
             raise ReceptionError("Timeout occurred during reception.")
+
+        # format output string
+        if self._parent_dev == 'pc':
+            received_bytes = received_bytes.decode('utf-8')
+
+        # second verification
+        if received_bytes.strip() == 'busy':
+            raise ReceptionError("Transmitter is busy.")
 
         # debugging
         if self._debug:
-            print("LoRa:_ser_read : %s".format(received_bytes.strip()))
-
-        # format output string
-        if self.parent_dev == 'pc':
-            received_bytes = received_bytes.decode('utf-8')
+            print("LoRa:_ser_read : {}".format(received_bytes.strip()))
 
         return received_bytes
 
@@ -180,7 +184,7 @@ class LoRa(object):
                 received_data = received_data[8:].strip()
 
                 if self._debug:
-                    print("LoRa:recv : %s".format(received_data))
+                    print("LoRa:recv : {}".format(received_data))
 
                 return received_data
 
@@ -235,8 +239,8 @@ class LoRa(object):
             self._ser_write_read_verify("radio set sync 12", "ok")
             self._ser_write_read_verify("radio set bw 250", "ok")
 
-        except (TransmissionError, ReceptionError):
-            raise ConfigurationError("Initial configuration failed.")
+        except (TransmissionError, ReceptionError) as e:
+            raise ConfigurationError("Initial configuration failed: " + str(e))
         else:
             if self._debug:
                 print("LoRa:__init__ : Connection established and " +
@@ -260,9 +264,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='LoRa Script Arguments')
     parser.add_argument('-d', '--debug',
                         action='store_true', help='debug mode')
-    parser.add_argument('-tx', '--transmit',
+    parser.add_argument('-t', '--transmit',
                         default='',
                         help='Data to transmit')
+    parser.add_argument('-r', '--receive',
+                        default='10',
+                        help='Timeout upon reception')
     parser.add_argument('-p', '--port',
                         default='ttyUSB0',
                         help='Serial Port ' +
@@ -272,22 +279,24 @@ if __name__ == "__main__":
     debug = args.debug
     serial_port = args.port
     tx_data = args.transmit
+    timeout = int(args.receive)
 
     # create connection
     try:
-        lora = LoRa(serial_port, debug)
+        lora = LoRa(serial_port, timeout, debug)
     except ConfigurationError as e:
-        print("Error occurred: " + e)
+        print("Error occurred: " + str(e))
 
     # start operation
     if tx_data != "":
         try:
             lora.send(tx_data)
         except (ConfigurationError, TransmissionError) as e:
-            print("Error occurred: " + e)
+            print("Error occurred: " + str(e))
     else:
         while True:
             try:
                 lora.recv()
             except (ConfigurationError, ReceptionError) as e:
-                print("Error occurred: " + e)
+                print("Error occurred: " + str(e))
+                break
