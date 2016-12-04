@@ -4,29 +4,36 @@ import binascii
 
 # Module specific Exception
 class ConnectionError(Exception):
+    '''Parent device (PC or pyb) failing to connect to LoRa module'''
     pass
 
 
 class TransmissionError(Exception):
+    '''Error during transmission (in LoRa or serial communication)'''
     pass
 
 
 class ReceptionError(Exception):
+    '''Error during reception (in LoRa or serial communication)'''
     pass
 
 
 class TimeoutError(Exception):
+    '''LoRa module reception timeout error'''
     pass
 
 
 class ConfigurationError(Exception):
+    '''Parent device (PC or pyb) failing to configure LoRa module for task'''
     pass
 
 
 class LoRa(object):
+    '''Representing a physical connection to a RN2483 LoRa module'''
 
     # Helper Function
     def _set_parent_dev(self):
+        '''Set parent device (PC or micropython board)'''
         try:
             import pyb
         except:
@@ -36,6 +43,7 @@ class LoRa(object):
 
     # Create connection to LoRa module from parent device
     def _open(self, serPort=1):
+        '''Open serial connection to LoRa module'''
         if self._parent_dev == 'pyb':
             # via micropython board
             import pyb
@@ -59,12 +67,17 @@ class LoRa(object):
 
             # try to connect
             try:
+                # set serial write timeout to same value as read timeout
+                # to avoid being blocking for too long
+                timeout = self._read_timeout_serial / 1000
+
                 ser = serial.Serial(serPort,
                                     baudrate=57600,
                                     bytesize=serial.EIGHTBITS,
                                     parity=serial.PARITY_NONE,
                                     stopbits=serial.STOPBITS_ONE,
-                                    timeout=(self._read_timeout_serial / 1000))
+                                    timeout=timeout,
+                                    write_timeout=timeout)
             # error handling
             except serial.SerialException:
                 raise ConnectionError("No LoRa module at given port.")
@@ -76,11 +89,13 @@ class LoRa(object):
 
     # End connection to parent device
     def _close(self):
+        '''Close serial connection to LoRa module'''
         if self._parent_dev == 'pc':
             self._parent_ser.close()
 
     # Communicate with LoRa module via parent device
     def _ser_write(self, strIn):
+        '''Write via serial connection to LoRa module'''
         # reset error handling flags
         transmit_failed = False
         transmit_incomplete = False
@@ -122,6 +137,7 @@ class LoRa(object):
             print("LoRa:_ser_write : {}".format(data))
 
     def _ser_read(self):
+        '''Read via serial connection from LoRa module'''
         # read one line from parent device (blocking)
         received_bytes = self._parent_ser.readline()
 
@@ -140,6 +156,7 @@ class LoRa(object):
         return received_bytes
 
     def _ser_write_read_verify(self, strIn, strOut=0):
+        '''Perform serial write and read and verify the read output'''
         # transmit data
         self._ser_write(strIn)
 
@@ -161,6 +178,7 @@ class LoRa(object):
 
     # LoRa communication functions
     def recv(self):
+        '''Set LoRa module in receiver mode and read received data'''
         if self._debug:
             print("LoRa:recv : Prepare for reception.")
 
@@ -202,6 +220,7 @@ class LoRa(object):
                 return received_data
 
     def send(self, tx_data):
+        '''Set LoRa module in transmitter mode and send data'''
         if self._debug:
             print("LoRa:send : Prepare for transmission.")
 
@@ -228,15 +247,8 @@ class LoRa(object):
             if self._debug:
                 print("LoRa:send : " + str(tx_data))
 
-    def send_str(self, tx_str):
-        try:
-            tx_data = binascii.hexlify(tx_str)
-        except TypeError:
-            raise TransmissionError("Transmitted string cannot be converted.")
-        else:
-            self.send(tx_data)
-
     def recv_str(self):
+        '''Set LoRa module in receiver mode and read received ASCI string'''
         # receive data
         rx_data = self.recv()
 
@@ -244,7 +256,7 @@ class LoRa(object):
         try:
             text = binascii.unhexlify(rx_data)
         except TypeError:
-            raise ReceptionError("Received data has odd length")
+            raise ReceptionError("Received data has odd length.")
         else:
             # TODO: comment
             if(len(rx_data) > 2):
@@ -252,9 +264,20 @@ class LoRa(object):
 
         return text
 
+    def send_str(self, tx_str):
+        '''Set LoRa module in transmitter mode and send ASCI string'''
+        try:
+            tx_data = binascii.hexlify(tx_str)
+        except TypeError:
+            raise TransmissionError("Transmitted string cannot be converted.")
+        else:
+            self.send(tx_data)
+
     # Constructor
     def __init__(self, port, timeout_serial=2000, timeout_lora=2000,
                  debug=False):
+        '''Open serial connection to LoRa module and configure it'''
+
         # set internal parameters
         self._read_timeout_serial = timeout_serial  # in ms
         self._read_timeout_lora = timeout_lora      # in ms, 0 = endless
@@ -297,11 +320,13 @@ class LoRa(object):
                 print("LoRa:__init__ : Connection established and " +
                       "configuration completed successfully.")
 
+    # Destructor
+    def __exit__(self, exc_type, exc_value, traceback):
+        '''Close serial connection to LoRa module'''
+        self._close()
+
     def __enter__(self):
         return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self._close()
 
     def __repr__(self):
         return "<LoRa module connection on port %d>".format(self.port)
