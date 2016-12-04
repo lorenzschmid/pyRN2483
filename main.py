@@ -2,10 +2,11 @@ import pyb
 from lora import LoRa
 
 debug = True
-ser_port = 1
+serial_port = 1
+timeout = 1000
 tx_data = ""
 
-lora = LoRa(ser_port, debug)
+lora = LoRa(serial_port, timeout, timeout, debug)
 if tx_data != "":
     lora.send(tx_data)
 else:

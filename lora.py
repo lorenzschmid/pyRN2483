@@ -14,6 +14,10 @@ class ReceptionError(Exception):
     pass
 
 
+class TimeoutError(Exception):
+    pass
+
+
 class ConfigurationError(Exception):
     pass
 
@@ -42,8 +46,8 @@ class LoRa(object):
                          bits=8,
                          parity=None,
                          stop=1,
-                         timeout=self._read_timeout,
-                         timeout_char=self._read_timeout)
+                         timeout=self._read_timeout_serial,
+                         timeout_char=self._read_timeout_serial)
             # error handling
             except:
                 raise ConnectionError("No LoRa module found.")
@@ -54,12 +58,12 @@ class LoRa(object):
 
             # try to connect
             try:
-                ser = serial.Serial('/dev/' + serPort,
+                ser = serial.Serial(serPort,
                                     baudrate=57600,
                                     bytesize=serial.EIGHTBITS,
                                     parity=serial.PARITY_NONE,
                                     stopbits=serial.STOPBITS_ONE,
-                                    timeout=self._read_timeout)
+                                    timeout=(self._read_timeout_serial / 1000))
             # error handling
             except serial.SerialException:
                 raise ConnectionError("No LoRa module at given port.")
@@ -122,7 +126,7 @@ class LoRa(object):
 
         # verification of timeout
         if received_bytes is None or len(received_bytes) == 0:
-            raise ReceptionError("Timeout occurred during reception.")
+            raise TimeoutError("Timeout occurred during reception.")
 
         # format output string
         if self._parent_dev == 'pc':
@@ -156,6 +160,9 @@ class LoRa(object):
 
     # LoRa communication functions
     def recv(self):
+        if self._debug:
+            print("LoRa:recv : Prepare for reception.")
+
         # try to configure device as receiver
         try:
             self._ser_write_read_verify("mac pause")
@@ -178,9 +185,13 @@ class LoRa(object):
                 print("LoRa:recv : Receiving...")
             try:
                 received_data = self._ser_read()
-            except ReceptionError as e:
+            except (ReceptionError, TimeoutError) as e:
                 raise e
             else:
+                # verify if no LoRa timeout occurred
+                if received_data.strip() == 'radio_err':
+                    raise TimeoutError("Timeout occurred during reception.")
+
                 # strip data
                 received_data = received_data[8:].strip()
 
@@ -190,6 +201,9 @@ class LoRa(object):
                 return received_data
 
     def send(self, tx_data):
+        if self._debug:
+            print("LoRa:send : Prepare for transmission.")
+
         # try to configure device as transmitter
         try:
             self._ser_write_read_verify("mac pause")
@@ -214,11 +228,17 @@ class LoRa(object):
                 print("LoRa:send : " + str(tx_data))
 
     # Constructor
-    def __init__(self, port, timeout=1000, debug=False):
-        self._read_timeout = timeout
+    def __init__(self, port, timeout_serial=2000, timeout_lora=2000,
+                 debug=False):
+        # set internal parameters
+        self._read_timeout_serial = timeout_serial  # in ms
+        self._read_timeout_lora = timeout_lora      # in ms, 0 = endless
         self._debug = debug
 
         try:
+            if self._debug:
+                print("LoRa:__init__ : Start initialization.")
+
             # get parent device
             self._set_parent_dev()
 
@@ -240,8 +260,13 @@ class LoRa(object):
             self._ser_write_read_verify("radio set sync 12", "ok")
             self._ser_write_read_verify("radio set bw 250", "ok")
 
-        except (TransmissionError, ReceptionError) as e:
-            raise ConfigurationError("Initial configuration failed: " + str(e))
+            # set reception timeout
+            if self._read_timeout_lora > 0:
+                self._ser_write_read_verify("radio set wdt {}".format(
+                    self._read_timeout_lora), "ok")
+
+        except (TransmissionError, ReceptionError):
+            raise ConfigurationError("Initial configuration failed.")
         else:
             if self._debug:
                 print("LoRa:__init__ : Connection established and " +
@@ -264,17 +289,17 @@ if __name__ == "__main__":
     # command line arguments and parsing
     parser = argparse.ArgumentParser(description='LoRa Script Arguments')
     parser.add_argument('-d', '--debug',
-                        action='store_true', help='debug mode')
+                        action='store_true', help='Debug mode')
     parser.add_argument('-t', '--transmit',
                         default='',
                         help='Data to transmit')
     parser.add_argument('-r', '--receive',
-                        default='10',
-                        help='Timeout upon reception')
+                        default='2000',
+                        help='Timeout upon reception (in ms)')
     parser.add_argument('-p', '--port',
                         default='ttyUSB0',
                         help='Serial Port ' +
-                        'e.g. pyb, ttyUSB1, tty.usbserial-A5046HZ5')
+                        'e.g. pyb, ttyUSB1, /dev/tty.usbserial-A5046HZ5')
     args = parser.parse_args()
 
     debug = args.debug
@@ -284,7 +309,8 @@ if __name__ == "__main__":
 
     # create connection
     try:
-        lora = LoRa(serial_port, timeout, debug)
+        # set same timeout for serial connection and LoRa receiver
+        lora = LoRa(serial_port, timeout, timeout, debug)
     except ConfigurationError as e:
         print("Error occurred: " + str(e))
 
@@ -298,6 +324,8 @@ if __name__ == "__main__":
         while True:
             try:
                 lora.recv()
+            except TimeoutError:
+                print("Reception timeout occurred, continuing.")
             except (ConfigurationError, ReceptionError) as e:
                 print("Error occurred: " + str(e))
                 break
