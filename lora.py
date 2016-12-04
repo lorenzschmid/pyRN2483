@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import binascii
 
+
 # Module specific Exception
 class ConnectionError(Exception):
     pass
@@ -228,7 +229,12 @@ class LoRa(object):
                 print("LoRa:send : " + str(tx_data))
 
     def send_str(self, tx_str):
-        self.send(binascii.hexlify(tx_str))
+        try:
+            tx_data = binascii.hexlify(tx_str)
+        except TypeError:
+            raise TransmissionError("Transmitted string cannot be converted.")
+        else:
+            self.send(tx_data)
 
     def recv_str(self):
         # receive data
@@ -237,13 +243,14 @@ class LoRa(object):
         # try to convert data to string
         try:
             text = binascii.unhexlify(rx_data)
-        except TypeError as e:
+        except TypeError:
             raise ReceptionError("Received data has odd length")
-        if(len(rx_data) > 2):
-            text = binascii.unhexlify(rx_data[:-1])
+        else:
+            # TODO: comment
+            if(len(rx_data) > 2):
+                text = binascii.unhexlify(rx_data[:-1])
 
         return text
-
 
     # Constructor
     def __init__(self, port, timeout_serial=2000, timeout_lora=2000,
