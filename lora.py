@@ -3,27 +3,32 @@ import binascii
 
 
 # Module specific Exception
-class ConnectionError(Exception):
+class LoRaException(Exception):
+    '''Parent exception class for all module exceptions'''
+    pass
+
+
+class ConnectionError(LoRaException):
     '''Parent device (PC or pyb) failing to connect to LoRa module'''
     pass
 
 
-class TransmissionError(Exception):
+class TransmissionError(LoRaException):
     '''Error during transmission (in LoRa or serial communication)'''
     pass
 
 
-class ReceptionError(Exception):
+class ReceptionError(LoRaException):
     '''Error during reception (in LoRa or serial communication)'''
     pass
 
 
-class TimeoutError(Exception):
+class TimeoutError(LoRaException):
     '''LoRa module reception timeout error'''
     pass
 
 
-class ConfigurationError(Exception):
+class ConfigurationError(LoRaException):
     '''Parent device (PC or pyb) failing to configure LoRa module for task'''
     pass
 
