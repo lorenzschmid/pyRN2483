@@ -170,10 +170,10 @@ class LoRa(object):
 
         # if requested, verify return
         if strOut is not 0:
-            if answer.strip() != strOut:
+            if answer.strip().decode() != strOut:
                 # exception if LoRa module is already receiving and set to be
                 # receiving again it will respond "busy" instead of "ok"
-                if strIn.startswith('radio rx ') and answer.strip() == 'busy':
+                if strIn.startswith('radio rx ') and answer.strip().decode() == 'busy':
                     pass
                 else:
                     raise ReceptionError("Transmitted and received string " +
@@ -200,7 +200,7 @@ class LoRa(object):
                     self._ser_write("radio get snr")
                     snr = self._ser_read()
                     # range -128 to 127
-                    print("LoRa:recv : SNR = %d".format(snr))
+                    print("LoRa:recv : SNR = {0}".format(snr))
                 except ReceptionError:
                     raise ConfigurationError("Could not obtain SNR value.")
 
@@ -243,7 +243,7 @@ class LoRa(object):
 
             # read out transmission verification
             ret = self._ser_read()
-            if ret.strip() != "radio_tx_ok":
+            if ret.strip().decode() != "radio_tx_ok":
                 raise TransmissionError("No transmission confirmation " +
                                         "received.")
         except (TransmissionError, ReceptionError):
@@ -256,23 +256,25 @@ class LoRa(object):
         '''Set LoRa module in receiver mode and read received ASCI string'''
         # receive data
         rx_data = self.recv()
+        text = ""
 
         # try to convert data to string
         try:
             text = binascii.unhexlify(rx_data)
         except TypeError:
             raise ReceptionError("Received data has odd length.")
-        else:
-            # TODO: comment
-            if(len(rx_data) > 2):
-                text = binascii.unhexlify(rx_data[:-1])
+            try:
+                if(len(rx_data) > 2):
+                    text = binascii.unhexlify(rx_data[:-1])
+            except:
+                raise ReceptionError("Received data has odd length. Not recoverable.")
 
-        return text
+        return text.decode()
 
     def send_str(self, tx_str):
         '''Set LoRa module in transmitter mode and send ASCI string'''
         try:
-            tx_data = binascii.hexlify(tx_str)
+            tx_data = binascii.hexlify(tx_str).decode()
         except TypeError:
             raise TransmissionError("Transmitted string cannot be converted.")
         else:
@@ -376,9 +378,11 @@ if __name__ == "__main__":
         except (ConfigurationError, TransmissionError) as e:
             print("Error occurred: " + str(e))
     else:
+        print("Receiving:...")
         while True:
             try:
-                lora.recv_str()
+                rx_str = lora.recv_str()
+                print("Received: '" + str(rx_str) + "'")
             except TimeoutError:
                 print("Reception timeout occurred, continuing.")
             except (ConfigurationError, ReceptionError) as e:
