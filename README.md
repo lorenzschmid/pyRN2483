@@ -3,6 +3,13 @@
 Small Python library to interface the RN2483 LoRa module over a serial connection. Once connected, the library allows to receive and transmit data over LoRa directly with the module. Supports micropython and desktop machines.
 
 
+## Installation
+
+1. Clone this repository `git clone https://github.com/lorenzschmid/pyRN2483.git`
+2. Change into the new directory `cd rn2483`
+3. Install package with `pip`: `pip install .`
+
+
 ## Micropython Example
 
     import pyb
