@@ -1,4 +1,4 @@
-import binascii
+from binascii import hexlify, unhexlify
 
 
 # Module specific Exception
@@ -260,22 +260,16 @@ class LoRa(object):
 
         # try to convert data to string
         try:
-            text = binascii.unhexlify(rx_data)
+            text = unhexlify(rx_data)
         except TypeError:
             raise ReceptionError("Received data has odd length.")
-            try:
-                if(len(rx_data) > 2):
-                    text = binascii.unhexlify(rx_data[:-1])
-            except:
-                raise ReceptionError(
-                    "Received data has odd length. Not recoverable.")
 
         return text.decode()
 
     def send_str(self, tx_str):
         '''Set LoRa module in transmitter mode and send ASCI string'''
         try:
-            tx_data = binascii.hexlify(tx_str).decode()
+            tx_data = hexlify(tx_str).decode()
         except TypeError:
             raise TransmissionError("Transmitted string cannot be converted.")
         else:
