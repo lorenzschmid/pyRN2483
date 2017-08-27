@@ -1,0 +1,58 @@
+#!/usr/bin/env python
+
+from rn2483 import LoRa, ConfigurationError, TransmissionError, ReceptionError
+import argparse
+import sys
+
+# command line arguments and parsing
+parser = argparse.ArgumentParser(
+    description='Receive and transmit data via rn2483 module.')
+parser.add_argument('-d', '--debug',
+                    action='store_true', help='Debug mode')
+parser.add_argument('-t', '--transmit',
+                    default='',
+                    help='Data to transmit')
+parser.add_argument('-r', '--receive',
+                    default='2000',
+                    help='Timeout upon reception (in ms)')
+parser.add_argument('-p', '--port',
+                    help='Serial Port ' +
+                    'e.g. pyb, ttyUSB1, /dev/tty.usbserial-A5046HZ5')
+
+# abort and show help if no port is specified
+if len(sys.argv) == 1:
+    parser.print_help()
+    sys.exit(1)
+
+# else parse input
+args = parser.parse_args()
+
+debug = args.debug
+serial_port = args.port
+tx_data = args.transmit
+timeout = int(args.receive)
+
+# create connection
+try:
+    # set same timeout for serial connection and LoRa receiver
+    lora = LoRa(serial_port, timeout, timeout, debug)
+except ConfigurationError as e:
+    print("Error occurred: " + str(e))
+
+# start operation
+if tx_data != "":
+    try:
+        lora.send_str(tx_data)
+    except (ConfigurationError, TransmissionError) as e:
+        print("Error occurred: " + str(e))
+else:
+    print("Receiving:...")
+    while True:
+        try:
+            rx_str = lora.recv_str()
+            print("Received: '" + str(rx_str) + "'")
+        except TimeoutError:
+            print("Reception timeout occurred, continuing.")
+        except (ConfigurationError, ReceptionError) as e:
+            print("Error occurred: " + str(e))
+            break

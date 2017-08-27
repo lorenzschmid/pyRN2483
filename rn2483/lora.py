@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import binascii
 
 
@@ -173,7 +172,8 @@ class LoRa(object):
             if answer.strip().decode() != strOut:
                 # exception if LoRa module is already receiving and set to be
                 # receiving again it will respond "busy" instead of "ok"
-                if strIn.startswith('radio rx ') and answer.strip().decode() == 'busy':
+                if strIn.startswith('radio rx ') and \
+                   answer.strip().decode() == 'busy':
                     pass
                 else:
                     raise ReceptionError("Transmitted and received string " +
@@ -267,7 +267,8 @@ class LoRa(object):
                 if(len(rx_data) > 2):
                     text = binascii.unhexlify(rx_data[:-1])
             except:
-                raise ReceptionError("Received data has odd length. Not recoverable.")
+                raise ReceptionError(
+                    "Received data has odd length. Not recoverable.")
 
         return text.decode()
 
@@ -337,54 +338,3 @@ class LoRa(object):
 
     def __repr__(self):
         return "<LoRa module connection on port %d>".format(self.port)
-
-
-# execute only if run as a script
-if __name__ == "__main__":
-    import argparse
-
-    # command line arguments and parsing
-    parser = argparse.ArgumentParser(description='LoRa Script Arguments')
-    parser.add_argument('-d', '--debug',
-                        action='store_true', help='Debug mode')
-    parser.add_argument('-t', '--transmit',
-                        default='',
-                        help='Data to transmit')
-    parser.add_argument('-r', '--receive',
-                        default='2000',
-                        help='Timeout upon reception (in ms)')
-    parser.add_argument('-p', '--port',
-                        default='ttyUSB0',
-                        help='Serial Port ' +
-                        'e.g. pyb, ttyUSB1, /dev/tty.usbserial-A5046HZ5')
-    args = parser.parse_args()
-
-    debug = args.debug
-    serial_port = args.port
-    tx_data = args.transmit
-    timeout = int(args.receive)
-
-    # create connection
-    try:
-        # set same timeout for serial connection and LoRa receiver
-        lora = LoRa(serial_port, timeout, timeout, debug)
-    except ConfigurationError as e:
-        print("Error occurred: " + str(e))
-
-    # start operation
-    if tx_data != "":
-        try:
-            lora.send_str(tx_data)
-        except (ConfigurationError, TransmissionError) as e:
-            print("Error occurred: " + str(e))
-    else:
-        print("Receiving:...")
-        while True:
-            try:
-                rx_str = lora.recv_str()
-                print("Received: '" + str(rx_str) + "'")
-            except TimeoutError:
-                print("Reception timeout occurred, continuing.")
-            except (ConfigurationError, ReceptionError) as e:
-                print("Error occurred: " + str(e))
-                break
