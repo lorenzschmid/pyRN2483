@@ -1,6 +1,6 @@
 # RN2483
 
-Small Python library to interface the RN2483 LoRa module over a serial connection. Once connected, the library allows to receive and transmit data over LoRa directly with the module. Supports micropython and desktop machines.
+Small Python library to interface the RN2483 ([Data-Sheet](http://ww1.microchip.com/downloads/en/DeviceDoc/RN2483-Data-Sheet-DS50002346E.pdf), [User-Guide](http://ww1.microchip.com/downloads/en/DeviceDoc/RN2483-LoRa-Technology-Module-Command-Reference-User-Guide-DS40001784G.pdf)) LoRa module over a serial connection. Once connected, the library allows to receive and transmit data over LoRa directly with the module. Supports micropython and desktop machines.
 
 
 ## Installation
